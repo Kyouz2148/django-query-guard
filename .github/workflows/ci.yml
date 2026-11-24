@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        django-version: ["4.2.*", "5.1.*"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install "Django==${{ matrix.django-version }}" pytest pytest-django
+          pip install -e .
+
+      - name: Run tests with Query Guard report
+        run: |
+          pytest -v --query-guard --query-guard-markdown="$GITHUB_STEP_SUMMARY" --query-guard-json=query-guard.json
+
+      - name: Upload Query Guard JSON artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: query-guard-py${{ matrix.python-version }}-dj${{ matrix.django-version }}
+          path: query-guard.json

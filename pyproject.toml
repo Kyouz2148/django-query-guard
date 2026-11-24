@@ -1,0 +1,71 @@
+[build-system]
+requires = ["hatchling>=1.24.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "django-query-guard"
+version = "0.1.0"
+description = "Automatic N+1 query detector and SQL profiler for Django TestCase and Pytest"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+authors = [
+    { name = "Django Query Guard Contributors" }
+]
+keywords = [
+    "django",
+    "pytest",
+    "n+1",
+    "sql",
+    "orm",
+    "performance",
+    "testing",
+    "query-profiler",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Framework :: Django",
+    "Framework :: Django :: 3.2",
+    "Framework :: Django :: 4.2",
+    "Framework :: Django :: 5.0",
+    "Framework :: Django :: 5.1",
+    "Framework :: Pytest",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Database",
+]
+dependencies = [
+    "Django>=3.2",
+]
+
+[project.optional-dependencies]
+pytest = [
+    "pytest>=7.0",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-django>=4.5",
+]
+
+[project.entry-points."pytest11"]
+query_guard = "django_query_guard.plugin"
+
+[project.urls]
+Homepage = "https://github.com/Kyouz2148/django-query-guard"
+Repository = "https://github.com/Kyouz2148/django-query-guard"
+Issues = "https://github.com/Kyouz2148/django-query-guard/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/django_query_guard"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "tests.django_settings"
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-ra"
