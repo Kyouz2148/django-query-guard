@@ -1,70 +1,70 @@
 # django-query-guard
 
-> 🇧🇷 [Leia em Português (PT-BR)](README.pt-BR.md)
+> 🇺🇸 [Read in English](README.en.md)
 
-**Automatic N+1 query detector, SQL budget enforcer, and heaviest-tests profiler for Django `TestCase` and `Pytest`.**
+**Detector automático de N+1 queries, controlador de orçamento de SQL e profiler dos testes mais pesados para Django `TestCase` e `Pytest`.**
 
-Stop maintaining brittle hardcoded `assertNumQueries(17)` counts. `django-query-guard` hooks into Django's `execute_wrapper` (no `DEBUG=True` required), normalizes executed SQL statements into structural fingerprints, identifies repeated N+1 queries and exact duplicates with exact Python callsites and ORM fix hints (`select_related`, `prefetch_related`, `bulk_create`), and generates a **Top Heaviest Tests** ranking in Pytest & CI.
-
----
-
-## Key Features
-
-- **Zero-magic SQL capture** via Django's native `connection.execute_wrapper` (works on SQLite, PostgreSQL, MySQL, multi-DB setups, sync & async tests).
-- **Works everywhere**:
-  - **Pytest** markers (`@pytest.mark.no_n_plus_one`, `@pytest.mark.max_queries(N)`, `@pytest.mark.allow_n_plus_one`) and fixtures (`query_guard`, `assert_no_n_plus_one`, `assert_max_queries`).
-  - **Django `TestCase`** (`QueryGuardMixin`, `self.assertNoNPlusOne()`, `self.assertMaxQueries(N)`, or standalone decorators/context managers).
-- **Pinpoints the culprit**:
-  - Normalizes literals, bind parameters (`%s`, `?`, `$1`), and variable-length `IN (...)` lists.
-  - Reports the exact normalized SQL, repetition count, execution time, sample queries, Python callsite (`views.py:42 in list_books`), and actionable Django ORM remediation hints.
-- **CI-ready rankings & exports**:
-  - Terminal summary table ranking the heaviest tests by query count, N+1 count, or SQL duration (`--query-guard`).
-  - Fail the whole test suite on any N+1 regression (`--n-plus-one-fail`).
-  - Export JSON (`--query-guard-json`) and GitHub-flavored Markdown (`--query-guard-markdown`) for `$GITHUB_STEP_SUMMARY` or PR comments.
+Chega de manter contagens manuais e frágeis como `assertNumQueries(17)`. O `django-query-guard` intercepta queries SQL automaticamente (sem exigir `DEBUG=True`), normaliza os comandos SQL em *fingerprints* estruturais, identifica queries repetidas (N+1) e duplicatas exatas com a linha exata do código Python (*callsite*) e dicas de correção no ORM (`select_related`, `prefetch_related`, `bulk_create`), além de gerar um **ranking dos testes mais pesados** no relatório do Pytest e CI.
 
 ---
 
-## Installation
+## Principais Recursos
+
+- **Captura nativa sem mágica**: intercepta queries SQL (compatível com SQLite, PostgreSQL, MySQL, múltiplos bancos e código síncrono ou assíncrono — `async for`, `aget`, `sync_to_async`).
+- **Funciona nos dois ecossistemas**:
+  - **Pytest**: markers (`@pytest.mark.no_n_plus_one`, `@pytest.mark.max_queries(N)`, `@pytest.mark.allow_n_plus_one`) e fixtures (`query_guard`, `assert_no_n_plus_one`, `assert_max_queries`).
+  - **Django `TestCase`**: `QueryGuardMixin`, `self.assertNoNPlusOne()`, `self.assertMaxQueries(N)`, ou decorators/context managers diretamente nos métodos de teste.
+- **Aponta exatamente o culpado**:
+  - Normaliza literais, parâmetros (`%s`, `?`, `$1`) e listas `IN (...)` de tamanho variável.
+  - Mostra o SQL normalizado, quantidade de repetições, tempo total, amostras da query, o arquivo/linha de origem (`views.py:18 in book_list`) e sugestão automática de otimização no Django ORM.
+- **Ranking e relatórios para CI**:
+  - Tabela no terminal listando os **Top N testes mais pesados** por número de queries, ocorrências de N+1 ou tempo de SQL (`--query-guard`).
+  - Modo estrito para barrar regressões no CI (`--n-plus-one-fail`).
+  - Exportação em **JSON** (`--query-guard-json`) e **Markdown** (`--query-guard-markdown`) pronta para `$GITHUB_STEP_SUMMARY` ou comentários em Pull Requests.
+
+---
+
+## Instalação
 
 ```bash
 pip install django-query-guard
 ```
 
-The Pytest plugin is automatically registered via the `pytest11` entry point.
+O plugin do Pytest é registrado automaticamente via entry point `pytest11`.
 
 ---
 
-## Quick Start
+## Guia Rápido
 
-### 1. Context Manager & Decorator (Pytest or Django `TestCase`)
+### 1. Context Manager e Decorator (Pytest ou Django `TestCase`)
 
 ```python
 from django_query_guard import assert_no_n_plus_one, assert_max_queries
 
 # Context manager
-def test_books_endpoint(client):
+def test_endpoint_livros(client):
     with assert_no_n_plus_one():
         response = client.get("/api/books/")
     assert response.status_code == 200
 
-# Decorator (sync or async)
+# Decorator (síncrono ou assíncrono)
 @assert_no_n_plus_one(threshold=3, max_queries=10)
-def test_books_serialized():
+def test_listagem_otimizada():
     ...
 
-# Hard query budget with full SQL breakdown on failure
+# Orçamento máximo com detalhamento completo das queries em caso de falha
 with assert_max_queries(5, check_n_plus_one=True):
     client.get("/api/books/")
 ```
 
-### 2. Pytest Markers & Fixtures
+### 2. Markers e Fixtures do Pytest
 
 ```python
 import pytest
 
 @pytest.mark.django_db
 @pytest.mark.no_n_plus_one
-def test_author_books(client):
+def test_autores_e_livros(client):
     resp = client.get("/authors/")
     assert resp.status_code == 200
 
@@ -75,15 +75,15 @@ def test_dashboard(client):
     assert resp.status_code == 200
 
 @pytest.mark.django_db
-def test_scoped_block(client, query_guard):
-    # Setup queries here are not checked
+def test_bloco_especifico(client, query_guard):
+    # Queries de preparação fora do bloco não são contabilizadas
     with query_guard.assert_no_n_plus_one():
         client.get("/books/")
 ```
 
 ### 3. Django `TestCase` (`QueryGuardMixin`)
 
-`QueryGuardMixin` excludes `setUp` / `tearDown` queries when `query_guard_enabled = True`, and provides helper methods:
+O `QueryGuardMixin` isola apenas o método de teste (`setUp` e `tearDown` não entram na contagem quando `query_guard_enabled = True`), além de disponibilizar métodos auxiliares na instância:
 
 ```python
 from django.test import TestCase
@@ -93,19 +93,19 @@ class BookAPITestCase(QueryGuardMixin, TestCase):
     query_guard_enabled = True
     query_guard_threshold = 3
 
-    def test_books_list_is_optimized(self):
+    def test_listagem_otimizada(self):
         response = self.client.get("/books/")
         self.assertEqual(response.status_code, 200)
 
     @allow_n_plus_one
-    def test_legacy_endpoint(self):
+    def test_endpoint_legado(self):
         with self.assertMaxQueries(25):
             self.client.get("/legacy/")
 ```
 
 ---
 
-## Example Failure Output
+## Exemplo de Erro Detectado
 
 ```text
 NPlusOneError: N+1 query violation detected: 1 repeated SQL pattern(s) (threshold=3, total_queries=6).
@@ -121,15 +121,15 @@ Repeated Query Offenders:
 
 ---
 
-## Pytest CLI & CI Reporting
+## Ranking no Pytest e Integração com CI
 
-Run your suite with `--query-guard` to rank the heaviest tests:
+Execute a suíte com `--query-guard` para exibir o ranking dos testes mais pesados:
 
 ```bash
 pytest --query-guard --query-guard-top=15
 ```
 
-Enforce zero N+1 queries across the entire CI pipeline and write a GitHub Step Summary:
+Para falhar automaticamente qualquer teste com N+1 no CI e gerar um resumo no GitHub Actions:
 
 ```bash
 pytest --n-plus-one-fail \
@@ -137,7 +137,7 @@ pytest --n-plus-one-fail \
   --query-guard-json=artifacts/query-guard.json
 ```
 
-### Configuration via `pyproject.toml` / `pytest.ini`
+### Configuração via `pyproject.toml` / `pytest.ini`
 
 ```toml
 [tool.pytest.ini_options]
@@ -154,27 +154,33 @@ query_guard_ignore_patterns = [
 ]
 ```
 
-### All CLI Options
+### Flags de Linha de Comando (CLI)
 
-| Flag | Description |
+| Flag | Descrição |
 | --- | --- |
-| `--query-guard`, `--query-guard-report` | Profile all tests and print the heaviest-tests ranking table |
-| `--query-guard-top=N` | Number of heaviest tests shown in summary (default: `10`) |
-| `--query-guard-sort={queries,duration,n_plus_one}` | Ranking sort order (default: `queries`) |
-| `--n-plus-one-fail` | Fail any test with N+1 queries (opt out with `@pytest.mark.allow_n_plus_one`) |
-| `--n-plus-one-threshold=N` | Default repetition threshold for N+1 detection (default: `3`) |
-| `--query-guard-json=PATH` | Write structured JSON report to `PATH` |
-| `--query-guard-markdown=PATH` | Write Markdown summary report to `PATH` |
+| `--query-guard`, `--query-guard-report` | Analisa as queries de todos os testes e exibe o ranking dos mais pesados |
+| `--query-guard-top=N` | Quantidade de testes exibidos no ranking (padrão: `10`) |
+| `--query-guard-sort={queries,duration,n_plus_one}` | Critério de ordenação do ranking (padrão: `queries`) |
+| `--n-plus-one-fail` | Falha qualquer teste com N+1 queries (use `@pytest.mark.allow_n_plus_one` para exceções) |
+| `--n-plus-one-threshold=N` | Mínimo de repetições para considerar N+1 (padrão: `3`) |
+| `--query-guard-json=PATH` | Exporta o relatório estruturado em JSON para `PATH` |
+| `--query-guard-markdown=PATH` | Exporta o resumo em Markdown para `PATH` |
 
 ---
 
-## Options Reference (`assert_no_n_plus_one` / `assert_max_queries`)
+## Referência de Opções (`assert_no_n_plus_one` / `assert_max_queries`)
 
-- `threshold` (`int`, default `3`): Minimum repetitions of the same normalized SQL pattern to flag as N+1.
-- `max_queries` (`int | None`): Optional total query budget.
-- `check_writes` (`bool`, default `False`): Also check `INSERT` / `UPDATE` / `DELETE` patterns for N+1 loops (useful for catching missing `bulk_create` / `bulk_update`).
-- `fail_on_duplicates` (`bool`, default `False`): Also fail on exact duplicate queries (identical SQL + identical parameters).
-- `ignore_patterns` (`Iterable[str | Pattern]`): Regex patterns to ignore.
-- `ignore_tables` (`Iterable[str]`): Table names to ignore.
-- `using` (`str | Iterable[str] | None`): Database alias(es) to monitor (default: all configured connections).
-- `message` (`str | None`): Optional custom failure prefix.
+- `threshold` (`int`, padrão `3`): Número mínimo de repetições do mesmo padrão SQL para acusar N+1.
+- `max_queries` (`int | None`): Limite total opcional de queries executadas no bloco.
+- `check_writes` (`bool`, padrão `False`): Também detecta loops de `INSERT` / `UPDATE` / `DELETE` (sugerindo `bulk_create` / `bulk_update`).
+- `fail_on_duplicates` (`bool`, padrão `False`): Também falha em duplicatas exatas (mesmo SQL + mesmos parâmetros).
+- `ignore_patterns` (`Iterable[str | Pattern]`): Expressões regulares de SQL a ignorar.
+- `ignore_tables` (`Iterable[str]`): Nomes de tabelas a ignorar.
+- `using` (`str | Iterable[str] | None`): Alias(es) de banco de dados a monitorar (padrão: todas as conexões configuradas).
+- `message` (`str | None`): Prefixo opcional customizado para a mensagem de erro.
+
+---
+
+## Licença
+
+MIT — veja [LICENSE](LICENSE).
